@@ -218,9 +218,9 @@
 
     <!-- 訊息提示框 -->
     <div id="message-box">
-        <h2 id="msg-title">訊息</h2>
-        <p id="msg-text">內容</p>
-        <button onclick="closeMessage()">確認</button>
+        <h2 id="msg-title">2003/3/31</h2>
+        <p id="msg-text">🪞</p>
+        <button onclick="closeMessage()">i'm sorry</button>
     </div>
 
 <script>
@@ -302,10 +302,10 @@
                 requestAnimationFrame(drawTiles);
             };
         } catch (err) {
-            console.error("相機權限錯誤:", err);
+            console.error("", err);
             startBtn.style.display = 'block';
             loadingText.style.display = 'none';
-            showMessage("錯誤", "無法取得相機權限，請確認瀏覽器設定。");
+            showMessage("", "");
         }
     });
 
@@ -331,8 +331,52 @@
 
             tile.appendChild(canvas);
             
-            // 點擊事件：移動方塊
+            // 1. 點擊事件：移動方塊
             tile.addEventListener('click', () => handleTileClick(i));
+
+            // 2. 新增滑動與拖曳支援 (支援觸控螢幕與滑鼠拖曳)
+            let startX = 0;
+            let startY = 0;
+
+            tile.addEventListener('pointerdown', (e) => {
+                startX = e.clientX;
+                startY = e.clientY;
+                // 鎖定指標，確保手指滑出方塊範圍時仍能觸發 pointerup
+                tile.setPointerCapture(e.pointerId);
+            });
+
+            tile.addEventListener('pointerup', (e) => {
+                tile.releasePointerCapture(e.pointerId);
+                
+                if (hasWon || isShuffling || i === 15) return;
+                
+                const diffX = e.clientX - startX;
+                const diffY = e.clientY - startY;
+
+                // 如果移動距離太短（<15px），視為單純點擊，交給上面的 click 事件處理即可
+                if (Math.abs(diffX) < 15 && Math.abs(diffY) < 15) return;
+
+                // 取得這個方塊與空格的位置
+                const currentIdx = board.indexOf(i);
+                if (!isAdjacent(currentIdx, emptyIdx)) return;
+
+                const row = Math.floor(currentIdx / GRID_SIZE);
+                const col = currentIdx % GRID_SIZE;
+                const eRow = Math.floor(emptyIdx / GRID_SIZE);
+                const eCol = emptyIdx % GRID_SIZE;
+
+                let isValidSwipe = false;
+                
+                // 判斷玩家滑動的方向，是否正好是朝向空格的位置
+                if (eCol > col && diffX > 20 && Math.abs(diffX) > Math.abs(diffY)) isValidSwipe = true; // 往右滑
+                else if (eCol < col && diffX < -20 && Math.abs(diffX) > Math.abs(diffY)) isValidSwipe = true; // 往左滑
+                else if (eRow > row && diffY > 20 && Math.abs(diffY) > Math.abs(diffX)) isValidSwipe = true; // 往下滑
+                else if (eRow < row && diffY < -20 && Math.abs(diffY) > Math.abs(diffX)) isValidSwipe = true; // 往上滑
+
+                if (isValidSwipe) {
+                    handleTileClick(i);
+                }
+            });
             
             puzzleContainer.appendChild(tile);
         }
@@ -344,7 +388,7 @@
         startShuffleAnimation();
     }
 
-    // 處理方塊點擊
+    // 處理方塊點擊或滑動成功
     function handleTileClick(pieceId) {
         if (hasWon || isShuffling) return; // 過關後或正在洗牌時鎖定操作
         if (pieceId === 15) return; // 點擊的是隱藏的第16塊(概念上的空格)，無效
