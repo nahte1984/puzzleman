@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Puzzleman - Live Camera Sliding Puzzle</title>
+    
+    <!-- 引入指定的 9 款 Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anta&family=Black+Ops+One&family=Copse&family=Englebert&family=Fascinate+Inline&family=Meie+Script&family=Ranchers&family=Shrikhand&family=Uncial+Antiqua&display=swap" rel="stylesheet">
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #2c2e30;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            color: white;
+        }
+
+        /* 開始畫面 */
+        #start-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #start-btn {
+            background-color: #f0f0f0;
+            color: #2c2e30;
+            border: none;
+            padding: 15px 40px;
+            font-size: 24px; /* 字級 24 */
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.1s, background-color 0.2s;
+            letter-spacing: 0.3em; /* 字距 30% */
+            text-indent: 0.3em;    /* 抵銷最後一個字母右側的字距，使文字完美置中 */
+            display: flex;
+            align-items: center;
+        }
+
+        #start-btn span {
+            display: inline-block;
+        }
+
+        #start-btn:active {
+            transform: scale(0.95);
+        }
+
+        #start-btn:hover {
+            background-color: #ffffff;
+        }
+
+        /* 遊戲畫面 */
+        #game-screen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* 拼圖容器：維持 1:1 正方形比例，並在畫面中置中 */
+        #puzzle-container {
+            width: 90vmin; /* 取螢幕寬或高的最小值，確保永遠能完整顯示且是正方形 */
+            height: 90vmin;
+            max-width: 600px;
+            max-height: 600px;
+            position: relative;
+            background-color: #2c2e30;
+            touch-action: none; /* 防止滑動時頁面捲動 */
+        }
+
+        /* 單個拼圖方塊的定位與容器 */
+        .tile {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 25%;  /* 4x4 所以是 25% */
+            height: 25%;
+            padding: 2px; /* 方塊間的間距 */
+            box-sizing: border-box;
+            transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* 改用 GPU 加速的 transform，更加滑順 */
+            cursor: pointer;
+        }
+
+        /* 洗牌時加速動畫 */
+        .shuffling .tile {
+            transition: transform 0.06s linear;
+        }
+
+        /* 隱藏的最後一塊拼圖 (過關時顯示) - 4x4 的最後一塊 index 是 15 */
+        #tile-15 {
+            display: none;
+        }
+
+        /* 方塊內的畫布 (繪製即時影像) */
+        .tile canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px;
+            object-fit: cover;
+            display: block;
+            background-color: #1a1b1c; /* 載入時的底色 */
+            transform: scaleX(-1); /* 鏡像翻轉，符合前置鏡頭習慣 */
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        /* 隱藏的視訊元素 */
+        #video-element {
+            display: none;
+        }
+
+        /* 訊息彈窗 */
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            color: #2c2e30;
+            padding: 30px 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 20;
+            width: 80%;
+            max-width: 300px;
+        }
+
+        #message-box h2 {
+            margin: 0 0 15px 0;
+            font-size: 28px;
+        }
+
+        #message-box p {
+            margin: 0 0 20px 0;
+            font-size: 16px;
+        }
+
+        #message-box button {
+            background-color: #2c2e30;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            font-size: 16px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        /* 重新洗牌畫面 */
+        #restart-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(44, 46, 48, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 30;
+            backdrop-filter: blur(3px); /* 讓背景稍微模糊，凸顯按鈕 */
+        }
+
+        #restart-btn {
+            font-size: 80px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        #restart-btn:active {
+            transform: scale(0.9);
+        }
+
+        #loading {
+            display: none;
+            margin-top: 20px;
+            font-size: 16px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 初始畫面 -->
+    <div id="start-screen">
+        <button id="start-btn"></button>
+        <div id="loading">loading...</div>
+    </div>
+
+    <!-- 遊戲畫面 -->
+    <div id="game-screen">
+        <div id="puzzle-container">
+            <!-- 拼圖方塊將由 JS 動態生成 -->
+        </div>
+        <!-- 重新洗牌畫面 -->
+        <div id="restart-screen">
+            <button id="restart-btn">🫵</button>
+        </div>
+    </div>
+
+    <!-- 隱藏的原始相機影片 -->
+    <video id="video-element" playsinline autoplay muted></video>
+
+    <!-- 訊息提示框 -->
+    <div id="message-box">
+        <h2 id="msg-title">訊息</h2>
+        <p id="msg-text">內容</p>
+        <button onclick="closeMessage()">確認</button>
+    </div>
+
+<script>
+    // 網頁載入時為按鈕產生隨機字型
+    document.addEventListener('DOMContentLoaded', () => {
+        const fonts = [
+            'Englebert',
+            'Uncial Antiqua',
+            'Anta',
+            'Ranchers',
+            'Copse',
+            'Fascinate Inline',
+            'Shrikhand',
+            'Black Ops One',
+            'Meie Script'
+        ];
+
+        // 將 9 款字型陣列隨機打亂
+        for (let i = fonts.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [fonts[i], fonts[j]] = [fonts[j], fonts[i]];
+        }
+
+        const word = "puzzleman";
+        const btn = document.getElementById('start-btn');
+        btn.innerHTML = ''; // 清空預設內容
+
+        // 依序建立字母，並套用打亂後的不重複字型
+        for (let i = 0; i < word.length; i++) {
+            const span = document.createElement('span');
+            span.innerText = word[i];
+            span.style.fontFamily = `"${fonts[i]}", sans-serif`;
+            btn.appendChild(span);
+        }
+    });
+
+    const startBtn = document.getElementById('start-btn');
+    const startScreen = document.getElementById('start-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const puzzleContainer = document.getElementById('puzzle-container');
+    const video = document.getElementById('video-element');
+    const loadingText = document.getElementById('loading');
+    const restartScreen = document.getElementById('restart-screen');
+    const restartBtn = document.getElementById('restart-btn');
+    
+    // 遊戲狀態變數
+    let isPlaying = false;
+    let isShuffling = false; // 是否正在進行洗牌動畫
+    let board = [];      // 儲存每個位置目前放置的 pieceId (0-15)
+    let canvases = [];   // 儲存16個畫布元素
+    let contexts = [];   // 儲存16個畫布的 2D Context
+    let emptyIdx = 15;   // 空格的目前位置索引 (0-15)
+    let hasWon = false;
+
+    // 常數設定
+    const GRID_SIZE = 4;
+    const TOTAL_CELLS = GRID_SIZE * GRID_SIZE; // 16
+    const CONTAINER_ASPECT_RATIO = 1 / 1; // 正方形
+    const SHUFFLE_STEPS = 20; // 調整為 20 步
+
+    // 啟動相機
+    startBtn.addEventListener('click', async () => {
+        startBtn.style.display = 'none';
+        loadingText.style.display = 'block';
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "user" } 
+            });
+            video.srcObject = stream;
+            
+            // 當影像元資料載入完畢，開始遊戲
+            video.onloadedmetadata = () => {
+                video.play();
+                initGame();
+                startScreen.style.display = 'none';
+                gameScreen.style.display = 'flex';
+                isPlaying = true;
+                requestAnimationFrame(drawTiles);
+            };
+        } catch (err) {
+            console.error("相機權限錯誤:", err);
+            startBtn.style.display = 'block';
+            loadingText.style.display = 'none';
+            showMessage("錯誤", "無法取得相機權限，請確認瀏覽器設定。");
+        }
+    });
+
+    // 初始化遊戲
+    function initGame() {
+        puzzleContainer.innerHTML = '';
+        board = [];
+        canvases = [];
+        contexts = [];
+        hasWon = false;
+
+        // 建立 16 個方塊 (包含最後一個隱藏的空格補齊塊)
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+            board.push(i);
+
+            const tile = document.createElement('div');
+            tile.className = 'tile';
+            tile.id = `tile-${i}`;
+            
+            const canvas = document.createElement('canvas');
+            canvases.push(canvas);
+            contexts.push(canvas.getContext('2d', { alpha: false }));
+
+            tile.appendChild(canvas);
+            
+            // 點擊事件：移動方塊
+            tile.addEventListener('click', () => handleTileClick(i));
+            
+            puzzleContainer.appendChild(tile);
+        }
+
+        // 初始狀態為完成狀態
+        updateTilePositions();
+        
+        // 直接開始洗牌動畫 (拿掉原本的 1.5 秒延遲)
+        startShuffleAnimation();
+    }
+
+    // 處理方塊點擊
+    function handleTileClick(pieceId) {
+        if (hasWon || isShuffling) return; // 過關後或正在洗牌時鎖定操作
+        if (pieceId === 15) return; // 點擊的是隱藏的第16塊(概念上的空格)，無效
+
+        // 找到這個 pieceId 目前在哪個位置 (index)
+        const currentIdx = board.indexOf(pieceId);
+
+        // 檢查是否與空格 (emptyIdx) 相鄰
+        if (isAdjacent(currentIdx, emptyIdx)) {
+            // 交換位置
+            board[emptyIdx] = pieceId;
+            board[currentIdx] = 15;
+            emptyIdx = currentIdx;
+
+            // 更新 DOM 視覺位置
+            updateTilePositions();
+            
+            // 每次移動後檢查是否過關
+            checkWin();
+        }
+    }
+
+    // 判斷兩個索引在 4x4 網格中是否相鄰
+    function isAdjacent(idx1, idx2) {
+        const row1 = Math.floor(idx1 / GRID_SIZE);
+        const col1 = idx1 % GRID_SIZE;
+        const row2 = Math.floor(idx2 / GRID_SIZE);
+        const col2 = idx2 % GRID_SIZE;
+
+        const rowDiff = Math.abs(row1 - row2);
+        const colDiff = Math.abs(col1 - col2);
+
+        return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
+    }
+
+    // 非同步暫停函數
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    // 打亂拼圖展演動畫
+    async function startShuffleAnimation() {
+        isShuffling = true;
+        puzzleContainer.classList.add('shuffling'); // 加入洗牌 class 以切換成較快的動畫速度
+        emptyIdx = 15;
+        let lastMove = -1;
+        let simEmptyIdx = 15;
+        
+        const moveSequence = [];
+
+        // 1. 先預先計算好隨機的 20 步路徑
+        for (let i = 0; i < SHUFFLE_STEPS; i++) {
+            const validMoves = getValidMoves(simEmptyIdx);
+            const filteredMoves = validMoves.filter(move => move !== lastMove);
+            const nextPos = filteredMoves.length > 0 
+                ? filteredMoves[Math.floor(Math.random() * filteredMoves.length)] 
+                : validMoves[0];
+
+            moveSequence.push(nextPos);
+            lastMove = simEmptyIdx;
+            simEmptyIdx = nextPos;
+        }
+
+        // 2. 為了視覺效果，先把第 16 塊 (右下角) 隱藏，製造出「缺口」
+        document.getElementById('tile-15').style.display = 'none';
+
+        // 3. 開始播放動畫
+        for (let i = 0; i < SHUFFLE_STEPS; i++) {
+            const targetPos = moveSequence[i];
+            
+            // 與目標位置的方塊交換
+            const pieceId = board[targetPos];
+            board[emptyIdx] = pieceId;
+            board[targetPos] = 15;
+            emptyIdx = targetPos;
+
+            updateTilePositions();
+            
+            // 短暫等待，製造快速滑動的視覺效果
+            await sleep(60); 
+        }
+
+        isShuffling = false; // 動畫結束，開放玩家操作
+        puzzleContainer.classList.remove('shuffling'); // 恢復正常點擊的動畫速度
+    }
+
+    // 取得指定空格位置可以合法移動的索引列表
+    function getValidMoves(emptyIndex) {
+        const moves = [];
+        const row = Math.floor(emptyIndex / GRID_SIZE);
+        const col = emptyIndex % GRID_SIZE;
+
+        if (row > 0) moves.push(emptyIndex - GRID_SIZE); // 上
+        if (row < GRID_SIZE - 1) moves.push(emptyIndex + GRID_SIZE); // 下
+        if (col > 0) moves.push(emptyIndex - 1); // 左
+        if (col < GRID_SIZE - 1) moves.push(emptyIndex + 1); // 右
+
+        return moves;
+    }
+
+    // 更新 DOM 元素的 CSS top/left 屬性，呈現滑動效果
+    function updateTilePositions() {
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+            const pieceId = board[i];
+            const tileEl = document.getElementById(`tile-${pieceId}`);
+            
+            const row = Math.floor(i / GRID_SIZE);
+            const col = i % GRID_SIZE;
+
+            // 改用 transform: translate，效能更好不卡頓。100% 代表移動自己寬高的一倍
+            tileEl.style.transform = `translate(${col * 100}%, ${row * 100}%)`;
+        }
+    }
+
+    // 檢查是否成功還原
+    function checkWin() {
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+            if (board[i] !== i) return false;
+        }
+        
+        // 過關！
+        hasWon = true;
+        // 顯示最後一塊原本隱藏的拼圖，讓畫面完整
+        document.getElementById('tile-15').style.display = 'block';
+        
+        // 停留一秒鐘後顯示 🫵 按鈕
+        setTimeout(() => {
+            restartScreen.style.display = 'flex';
+        }, 1000);
+        return true;
+    }
+
+    // 點擊 🫵 重新洗牌
+    restartBtn.addEventListener('click', () => {
+        restartScreen.style.display = 'none';
+        hasWon = false;
+        startShuffleAnimation(); // 重新觸發洗牌動畫
+    });
+
+    // 持續將相機影像繪製到所有的畫布上
+    function drawTiles() {
+        if (!isPlaying) return;
+
+        const vidW = video.videoWidth;
+        const vidH = video.videoHeight;
+
+        // 如果影片還沒準備好，稍後重試
+        if (vidW === 0 || vidH === 0) {
+            requestAnimationFrame(drawTiles);
+            return;
+        }
+
+        const vidAspect = vidW / vidH;
+        let cropW, cropH, startX, startY;
+
+        // 計算裁切範圍以符合容器的 1:1 比例 (擷取中心畫面)
+        if (vidAspect > CONTAINER_ASPECT_RATIO) {
+            // 影片比較寬，裁切左右
+            cropH = vidH;
+            cropW = vidH * CONTAINER_ASPECT_RATIO;
+            startX = (vidW - cropW) / 2;
+            startY = 0;
+        } else {
+            // 影片比較高，裁切上下
+            cropW = vidW;
+            cropH = vidW / CONTAINER_ASPECT_RATIO;
+            startX = 0;
+            startY = (vidH - cropH) / 2;
+        }
+
+        // 每個小方塊對應的原始影像寬高
+        const tileSourceW = cropW / GRID_SIZE;
+        const tileSourceH = cropH / GRID_SIZE;
+
+        // 更新16個畫布 (即使是最後一塊隱藏的也會更新，過關時才能無縫顯示)
+        for (let i = 0; i < TOTAL_CELLS; i++) {
+            const canvas = canvases[i];
+            const ctx = contexts[i];
+
+            // 該方塊「原始」所屬的行與列
+            const o_row = Math.floor(i / GRID_SIZE);
+            const o_col = i % GRID_SIZE;
+
+            // 鏡像處理核心邏輯：
+            const raw_col = (GRID_SIZE - 1) - o_col;
+
+            const sx = startX + raw_col * tileSourceW;
+            const sy = startY + o_row * tileSourceH;
+
+            // 根據裁切比例設定畫布內部解析度 (只需設定一次即可)
+            if (canvas.width !== Math.floor(tileSourceW)) {
+                canvas.width = Math.floor(tileSourceW);
+                canvas.height = Math.floor(tileSourceH);
+            }
+
+            // 將對應的影片區域繪製到畫布上
+            ctx.drawImage(video, sx, sy, tileSourceW, tileSourceH, 0, 0, canvas.width, canvas.height);
+        }
+
+        // 循環更新下一幀
+        requestAnimationFrame(drawTiles);
+    }
+
+    // 訊息框控制
+    function showMessage(title, text) {
+        document.getElementById('msg-title').innerText = title;
+        document.getElementById('msg-text').innerText = text;
+        document.getElementById('message-box').style.display = 'block';
+    }
+
+    function closeMessage() {
+        document.getElementById('message-box').style.display = 'none';
+        // 如果已經過關了，點擊確認後可以選擇重新洗牌或重置，這裡暫不處理跳轉
+    }
+
+</script>
+</body>
+</html>
