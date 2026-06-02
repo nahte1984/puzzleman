@@ -23,6 +23,11 @@
             align-items: center;
             overflow: hidden;
             color: white;
+            
+            /* 新增：防止長按出現文字選取與原生選單 */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         /* 共用：膠囊型白底圓角按鈕 */
@@ -290,8 +295,7 @@
                 requestAnimationFrame(drawTiles);
             };
         } catch (err) {
-            // 已移除 console.error 避免預覽環境跳出紅字錯誤警告
-            // 直接顯示使用者設定的錯誤介面
+            // 避免預覽環境跳出紅字錯誤警告，直接顯示使用者設定的錯誤介面
             startScreen.style.display = 'none';
             errorScreen.style.display = 'flex';
         }
